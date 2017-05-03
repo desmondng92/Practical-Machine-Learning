@@ -1,0 +1,91 @@
+Title
+======
+Practical Machine Learning Assignment
+
+Loading data
+=============
+```{r}
+training <- read.csv('./pml-training.csv', header=T)
+
+testing <- read.csv('./pml-testing.csv', header=T)
+```
+
+Data Partitioning
+=================
+```{r}
+library(ggplot2)
+library(lattice)
+library(caret)
+set.seed(127)
+training_sample <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training <- training[training_sample, ]
+test <- training[-training_sample, ]
+```
+
+Identification of non zero data
+===============================
+```{r}
+all_zero_colnames <- sapply(names(testing), function(x) all(is.na(testing[,x])==TRUE))
+pred_data <- names(all_zero_colnames)[all_zero_colnames==FALSE]
+pred_data  <- pred_data [-(1:7)]
+pred_data  <- pred_data [1:(length(pred_data )-1)]
+```
+
+Model building
+==============
+```{r}
+library(caret)
+library(rpart)
+library(gbm)
+library(randomForest)
+library(plyr)
+fitControl <- trainControl(method='cv', number = 3)
+model_cart <- train(
+  classe ~ ., 
+  data=training[, c('classe', pred_data)],
+  trControl=fitControl,
+  method='rpart'
+)
+save(model_cart, file='./ModelFitCART.RData')
+model_gbm <- train(
+  classe ~ ., 
+  data=training[, c('classe', pred_data)],
+  trControl=fitControl,
+  method='gbm'
+)
+save(model_gbm, file='./ModelFitGBM.RData')
+model_rf <- train(
+  classe ~ ., 
+  data=training[, c('classe', pred_data)],
+  trControl=fitControl,
+  method='rf',
+  ntree=100
+)
+save(model_rf, file='./ModelFitRF.RData')
+```
+
+Cross validation
+================
+```{r}
+fitControl <- trainControl(method='cv', number = 3)
+```
+
+Estimation of out of sample error
+=================================
+```{r}
+predCART <- predict(model_cart, newdata=test)
+cmCART <- confusionMatrix(predCART, test$classe)
+predGBM <- predict(model_gbm, newdata=test)
+cmGBM <- confusionMatrix(predGBM, test$classe)
+predRF <- predict(model_rf, newdata=test)
+cmRF <- confusionMatrix(predRF, test$classe)
+AccuracyResults <- data.frame(
+  Model = c('CART', 'GBM', 'RF'),
+  Accuracy = rbind(cmCART$overall[1], cmGBM$overall[1], cmRF$overall[1])
+)
+print(AccuracyResults)
+```
+
+Conclusion
+==========
+Based on the data available,the data provided is able to fit a reasonably sound model with a high degree of accuracy in predicting out of sample observations, which is using the random forest decision tree model (100% accuracy obtained). When fitting a model on all training data columns, some features that are all missing in the validation sample do included non-zero items in the training sample and are used in the decision tree models.
